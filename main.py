@@ -207,8 +207,7 @@ def main():
 			print(f'\tProfanity Count: {count}')
 			if count > 0:
 				profanity_str = ', '.join(profanity_list)
-				print(f'\tProfanity: {profanity_str}')
-				
+				print(f'\tProfanity: {profanity_str}')				
 			
 
 if __name__ == '__main__':
