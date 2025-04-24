@@ -18,7 +18,8 @@ class Profanity:
 			next_break = len(self.lyrics)
 		return self.lyrics[prev_break:next_break].strip()
 		
-
+# Best for profane phrases that don't occur frequently within or between other words
+# Necessary for profanities that are a concatenation of two words
 class ConcatenationDetector:
 
 	def __init__(self):
@@ -77,6 +78,49 @@ class ConcatenationDetector:
 				profanity = Profanity(checked, lyrics, true_start_index, true_end_index)
 				profanities.append(profanity)
 		return profanities
+
+# Necessary for accurately detecting profanities that frequently appear within other words
+# Will need to include the plural forms of these profanities as well
+class IsolationDetector:
+	def __init__(self):
+		self.profanity_list = [] # Contains strings
+		self.keep_characters = f'{string.ascii_lowercase}{string.digits}' # Digits could be useful in rare instances
+
+	def addProfanity(self, phrase):
+		if phrase not in self.profanity_list:
+			self.profanity_list.append(phrase)
+
+	def __isolateLyricWords(self, lyrics):
+		lyric_words = []
+		array_map = [] # For each word, this array holds its starting position in the original lyrics
+		curr_word = ''
+		for i in range(0, len(lyrics)):
+			curr_char = lyrics[i]
+			if curr_char in self.keep_characters:
+				curr_word += curr_char
+			else:
+				if curr_word != '':
+					lyric_words.append(curr_word)
+					array_map.append(i - len(curr_word))
+					curr_word = ''
+		if curr_word != '': # In case lyrics end in a word
+			lyric_words.append(curr_word)
+			array_map.append(len(lyrics) - len(curr_word))
+		return lyric_words, array_map
+
+	def checkLyrics(self, lyrics):
+		lower_lyrics = lyrics.lower()
+		lyric_words, array_map = self.__isolateLyricWords(lower_lyrics)
+
+		profanities = [] # Contains Profanity objects for detected profane words
+		for i in range(0, len(lyric_words)):
+			curr_word = lyric_words[i]
+			if curr_word in self.profanity_list:
+				start_index = array_map[i]
+				end_index = start_index + len(curr_word)
+				profanity = Profanity(curr_word, lyrics, start_index, end_index)
+				profanities.append(profanity)
+		return profanities
 			
 
 class ProfanityClient:
@@ -86,17 +130,22 @@ class ProfanityClient:
 		self.isolate_profanities = isolate_profanities
 
 		self.concat_checker = ConcatenationDetector()
-		for phrase in concat_profanities:
-			self.concat_checker.addProfanity(phrase)		
+		for phrase in self.concat_profanities:
+			self.concat_checker.addProfanity(phrase)
+
+		self.isolate_checker = IsolationDetector()
+		for phrase in self.isolate_profanities:
+			self.isolate_checker.addProfanity(phrase)
 
 	def checkLyrics(self, lyrics):
 		concat_results = self.concat_checker.checkLyrics(lyrics)
-		return concat_results
+		isolate_results = self.isolate_checker.checkLyrics(lyrics)
+		return concat_results + isolate_results
 		
 
 def main():
-	concat_profanities = ['igot', 'porsche', 'toma', 'hevall', 'chnow']
-	isolate_profanities = []
+	concat_profanities = ['igot', 'porsche', 'toma', 'hevall', 'chnow'] # Not gonna put actual profanity in one of my repos
+	isolate_profanities = ['horse', 'now', 'nin', 'match', 'porsche']
 
 	client = ProfanityClient(concat_profanities, isolate_profanities)
 	lyrics = """
