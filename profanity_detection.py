@@ -1,4 +1,5 @@
 import string
+from menu_utils import spacePadString
 
 class Profanity:
 
@@ -144,32 +145,95 @@ class ProfanityClient:
 	# Allows users to examine profanity in any given song at varying levels
 	class ProfanityReport:
 
+		# Profanity reports are primarily made up of the overlap groups in each song
+		class OverlapGroup:
+
+			def __init__(self, lyrics, profanities):
+				self.lyrics = lyrics
+				self.profanities = profanities				
+
+			def getType(self):
+				if len(self.profanities) == 1:
+					if self.profanities[0].detection_method == 'concatenation':
+						return 'concatenation only'
+					elif self.profanities[0].detection_method == 'isolation':
+						return 'isolation only'
+				else:
+					start_index = self.profanities[0].start_index
+					end_index = self.profanities[0].end_index
+					for i in range(1, len(self.profanities)):
+						curr_profanity = self.profanities[i]
+						if curr_profanity.start_index != start_index or curr_profanity.end_index != end_index:
+							return 'complex overlap'
+					return 'simple overlap'
+
+			# Returns a dictionary with each unique profane phrase in overlap and its count
+			# This function is really meant for complex overlaps, which may contain simple overlaps
+			def countProfanities(self):
+				sorted_overlap = sorted(self.profanities, key=lambda x: (x.start_index, x.end_index)) # Identical indices end up adjacent
+				return_dict = {
+					sorted_overlap[0].caught_phrase: 1
+				}
+				prev_start = sorted_overlap[0].start_index
+				prev_end = sorted_overlap[0].end_index
+				for i in range(1, len(sorted_overlap)):
+					curr_profanity = sorted_overlap[i]
+					if curr_profanity.start_index != prev_start or curr_profanity.end_index != prev_end:
+						if curr_profanity.caught_phrase not in return_dict:
+							return_dict[curr_profanity.caught_phrase] = 0
+						return_dict[curr_profanity.caught_phrase] += 1
+						prev_start = curr_profanity.start_index
+						prev_end = curr_profanity.end_index
+				return return_dict
+
+			# space_padding argument doesn't function with __str__()
+			def toString(self, space_padding=4):
+				overlap_type = self.getType()
+				if overlap_type in ['concatenation only', 'isolation only']:
+					phrase = self.profanities[0].caught_phrase
+					method = self.profanities[0].detection_method
+					context = spacePadString(self.profanities[0].getLine(), space_padding)
+					return f'Phrase: {phrase}\nDetection Method: {method}\nContext:\n{context}'
+				elif overlap_type == 'simple overlap':
+					phrase = self.profanities[0].caught_phrase
+					methods = []
+					for item in self.profanities:
+						methods.append(item.detection_method)
+					methods_str = ', '.join(methods)
+					context = spacePadString(self.profanities[0].getLine(), space_padding)
+					return f'Phrase: {phrase}\nDetection Methods: {methods_str}\nContext:\n{context}'
+				elif overlap_type == 'complex overlap':
+					sorted_overlap = sorted(self.profanities, key=lambda x: x.start_index)
+					max_end = sorted_overlap[0].end_index
+					phrases = [sorted_overlap[0].caught_phrase]
+					methods_str = f'Detected {sorted_overlap[0].caught_phrase} via {sorted_overlap[0].detection_method}'
+					for i in range(1, len(sorted_overlap)):
+						phrases.append(sorted_overlap[i].caught_phrase)
+						methods_str += f'\nDetected {sorted_overlap[i].caught_phrase} via {sorted_overlap[i].detection_method}'
+						if sorted_overlap[i].end_index > max_end:
+							max_end = sorted_overlap[i].end_index
+					phrases_str = ', '.join(phrases)
+					methods_str = spacePadString(methods_str, space_padding)
+					prev_break = self.lyrics.rfind('\n', 0, sorted_overlap[0].start_index)
+					if prev_break == -1:
+						prev_break = 0
+					next_break = self.lyrics.find('\n', max_end)
+					if next_break == -1:
+						next_break = len(self.lyrics)
+					context = spacePadString(self.lyrics[prev_break:next_break].strip(), space_padding)
+					return f'Phrases: {phrases_str}\nDetection Methods:\n{methods_str}\nContext:\n{context}'
+
+
 		def __init__(self, lyrics, concat_results, isolate_results):
 			self.lyrics = lyrics
 			self.concat_results = concat_results
 			self.isolate_results = isolate_results
 
-		def __identifyOverlapType(self, overlap):
-			if len(overlap) == 1:
-				if overlap[0].detection_method == 'concatenation':
-					return 'Concatenation Only'
-				elif overlap[0].detection_method == 'isolation':
-					return 'Isolation Only'
-			else:
-				start_index = overlap[0].start_index
-				end_index = overlap[0].end_index
-				for i in range(1, len(overlap)):
-					curr_profanity = overlap[i]
-					if curr_profanity.start_index != start_index or curr_profanity.end_index != end_index:
-						return 'Complex Overlap'
-				return 'Simple Overlap'
-		
-
-		def getOverlapGroups(self):
+			# Finds any instances where caught phrases overlap with others
 			full_results = self.concat_results + self.isolate_results
-
-			# Create overlap groups; most groups will only have one profanity object because there is no overlap 
-			groups = []
+			self.groups = []
+			if len(full_results) == 0: # Can't make overlap groups with zero profanities
+				return
 			sorted_results = sorted(full_results, key=lambda x: x.start_index)
 			curr_overlap = [sorted_results[0]]
 			max_end = sorted_results[0].end_index
@@ -180,57 +244,80 @@ class ProfanityClient:
 					curr_overlap.append(curr_profanity)
 					if curr_profanity.end_index > max_end:
 						max_end = curr_profanity.end_index
-				else: # Archive current group and reset if no overlap
-					groups.append(curr_overlap)
+				else: # Save current group and reset if no overlap
+					new_overlap_group = self.OverlapGroup(self.lyrics, curr_overlap)
+					self.groups.append(new_overlap_group)
 					curr_overlap = [curr_profanity]
 					max_end = curr_profanity.end_index
-			groups.append(curr_overlap)
-			return groups
+			new_overlap_group = self.OverlapGroup(self.lyrics, curr_overlap)
+			self.groups.append(new_overlap_group)
 
-		def stringifyOverlap(self, overlap):
-			overlap_type = self.__identifyOverlapType(overlap)
-			if overlap_type in ['Concatenation Only', 'Isolation Only']:
-				phrase = overlap[0].caught_phrase
-				method = overlap[0].detection_method
-				context = overlap[0].getLine()
-				return f'Phrase: {phrase}\nDetection Method: {method}\nContext: {context}'
-			elif overlap_type == 'Simple Overlap':
-				phrase = overlap[0].caught_phrase
-				methods = []
-				for item in overlap:
-					methods.append(item.detection_method)
-				methods_str = ', '.join(methods)
-				context = overlap[0].getLine()
-				return f'Phrase: {phrase}\nDetection Methods: {methods_str}\nContext: {context}'
-			elif overlap_type == 'Complex Overlap':
-				sorted_overlap = sorted(overlap, key=lambda x: x.start_index)
-				max_end = sorted_overlap[0].end_index
-				phrases = [sorted_overlap[0].caught_phrase]
-				methods_str = f'\n\tDetected {sorted_overlap[0].caught_phrase} via {sorted_overlap[0].detection_method}'
-				for i in range(1, len(sorted_overlap)):
-					phrases.append(sorted_overlap[i].caught_phrase)
-					methods_str += f'\n\tDetected {sorted_overlap[i].caught_phrase} via {sorted_overlap[i].detection_method}'
-					if sorted_overlap[i].end_index > max_end:
-						max_end = sorted_overlap[i].end_index
-				phrases_str = ', '.join(phrases)
-				prev_break = self.lyrics.rfind('\n', 0, sorted_overlap[0].start_index)
-				if prev_break == -1:
-					prev_break = 0
-				next_break = self.lyrics.find('\n', max_end)
-				if next_break == -1:
-					next_break = len(self.lyrics)
-				context = self.lyrics[prev_break:next_break].strip()
-				return f'Phrases: {phrases_str}\nDetection Methods: {methods_str}\nContext: {context}'
+		# Returns a dictionary with profanity counts, sources, and overlap groups
+		def getProfanityCounts(self):
+			return_dict = {}
+			for group in self.groups:
+				group_profanities = group.countProfanities()
+				group_type = group.getType()
+				for phrase, count in group_profanities.items():
+					if phrase not in return_dict:
+						return_dict[phrase] = {
+							'total': 0,
+							'concatenation only': {
+								'count': 0,
+								'groups': []
+							},
+							'isolation only': {
+								'count': 0,
+								'groups': []
+							},
+							'simple overlap': {
+								'count': 0,
+								'groups': []
+							},
+							'complex overlap': {
+								'count': 0,
+								'groups': []
+							}
+						}
+					phrase_dict = return_dict[phrase]
+					phrase_dict['total'] += count
+					phrase_dict[group_type]['count'] += count
+					phrase_dict[group_type]['groups'].append(group)
+			return return_dict
+
+		def toString(self, space_padding=4):
+			profanity_counts = self.getProfanityCounts()
+			return_str = ''
+			for phrase, info in sorted(profanity_counts.items(), key=lambda x: x[0]): # Sorts alphabetically
+				total_found = info['total']
+				return_str += f'Phrase: {phrase}\n'
+				next_level = f'Total: {total_found}\nOverlap Types:\n'
+				methods_str = ''
+				example_count = 0
+				examples_str = ''
+				for method in ['concatenation only', 'isolation only', 'simple overlap', 'complex overlap']:
+					method_count = info[method]['count']
+					if method_count > 0:
+						methods_str += f'{method}: {method_count}\n'
+						for group in info[method]['groups']:
+							example_count += 1
+							group_str = spacePadString(group.toString(space_padding), space_padding)
+							examples_str += f'Example {example_count}:\n{group_str}\n'
+				next_level += spacePadString(methods_str, space_padding)
+				return_str += spacePadString(next_level, space_padding)
+				next_level = 'Examples:\n'
+				next_level += spacePadString(examples_str, space_padding)
+				return_str += spacePadString(next_level, space_padding)
+			return return_str[:-1]	
 
 	def checkLyrics(self, lyrics):
 		concat_results = self.concat_checker.checkLyrics(lyrics)
 		isolate_results = self.isolate_checker.checkLyrics(lyrics)
 		return self.ProfanityReport(lyrics, concat_results, isolate_results)
 			
-
 def main():
-	concat_profanities = ['chrid', 'porsche', 'toma', 'chnow', 'ack'] # Not gonna put actual profanity in one of my repos
-	isolate_profanities = ['horse', 'now', 'none', 'match', 'porsche']
+	concat_profanities = ['chrid', 'porsche', 'toma', 'chnow', 'in'] # Not gonna put actual profanity in one of my repos
+	isolate_profanities = ['horse', 'now', 'in', 'match', 'porsche']
 
 	client = ProfanityClient(concat_profanities, isolate_profanities)
 	lyrics = """
@@ -244,11 +331,7 @@ I been in the valley
 You ain't been up off that porch, now
 	"""
 	report = client.checkLyrics(lyrics)
-	groups = report.getOverlapGroups()
-	for group in groups:
-		group_str = report.stringifyOverlap(group)
-		print(f'\n{group_str}')
-
+	print(report.toString())
 
 if __name__ == '__main__':
 	main()
