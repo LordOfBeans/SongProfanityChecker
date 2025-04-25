@@ -30,8 +30,26 @@ class DatabaseClient:
 			WHERE song_id = ?
 		""", [lyrics, song_id])
 
+	def addProfanityLevel(self, name, points):
+		self.cur.execute("""
+			INSERT INTO profanity_levels (level, points)
+			VALUES (?, ?)
+		""", [name, points])
+
+	def addProfanity(self, phrase, level, detection):
+		self.cur.execute("""
+			INSERT INTO profanities (phrase, level, detection)
+			VALUES (?, ?, ?)
+		""", [phrase, level, detection])
+
 	def fetchAllSongs(self):
 		self.cur.execute("""
 			SELECT * FROM songs	
+		""")
+		return self.cur.fetchall()
+
+	def fetchProfanityLevels(self):
+		self.cur.execute("""
+			SELECT * FROM profanity_levels
 		""")
 		return self.cur.fetchall()

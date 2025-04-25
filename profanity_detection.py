@@ -314,9 +314,43 @@ class ProfanityClient:
 		concat_results = self.concat_checker.checkLyrics(lyrics)
 		isolate_results = self.isolate_checker.checkLyrics(lyrics)
 		return self.ProfanityReport(lyrics, concat_results, isolate_results)
-			
+
+# Takes profanities found in individual songs and totals them up, returns dictionary
+def combineProfanityReports(reports):
+	return_dict = {}
+	for report in reports:
+		report_counts = report.getProfanityCounts()
+		for phrase, info in report_counts.items():
+			# Mirrors ProfanityClient.ProfanityReport.getProfanityCounts()
+			if phrase not in return_dict:
+				return_dict[phrase] = {
+					'total': 0,
+					'concatenation only': {
+						'count': 0,
+						'groups': []
+					},
+					'isolation only': {
+						'count': 0,
+						'groups': []
+					},
+					'simple overlap': {
+						'count': 0,
+						'groups': []
+					},
+					'complex overlap': {
+						'count': 0,
+						'groups': []
+					}
+				}
+			phrase_dict = return_dict[phrase]
+			phrase_dict['total'] += info['total']
+			for overlap_type in ['concatenation only', 'isolation only', 'simple overlap', 'complex overlap']:
+				phrase_dict[overlap_type]['count'] += info[overlap_type]['count']
+				phrase_dict[overlap_type]['groups'] += info[overlap_type]['groups']
+	return return_dict	
+	
 def main():
-	concat_profanities = ['chrid', 'porsche', 'toma', 'chnow', 'in'] # Not gonna put actual profanity in one of my repos
+	concat_profanities = ['chrid', 'porsche', 'toma', 'chnow', 'in'] # Not gonna store any actual profanity in this repo
 	isolate_profanities = ['horse', 'now', 'in', 'match', 'porsche']
 
 	client = ProfanityClient(concat_profanities, isolate_profanities)
