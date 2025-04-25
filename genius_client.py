@@ -1,8 +1,9 @@
 import requests
-from requests_oauthlib import OAuthSession2
+from requests_oauthlib import OAuth2Session
 import webbrowser
 import socket
 import json
+import oauthlib
 
 class GeniusClient:
 
@@ -15,10 +16,10 @@ class GeniusClient:
 		sock = socket.socket()
 		sock.bind(('', self.port))
 		sock.listen(1)
-		conn, address = sock.accept
+		conn, address = sock.accept()
 		data = conn.recv(1024).decode()
 
-		lines = data.splitlines():
+		lines = data.splitlines()
 		query = lines[0][14:-9]
 		if query[:5] != 'code=':
 			conn.send('Authorization stage failed. You may close this window.'.encode())
@@ -31,9 +32,9 @@ class GeniusClient:
 		return query[5:69]	
 
 	def __getAccessToken(self):
-		oauth = OAuthSession2(
+		oauth = OAuth2Session(
 			self.client_id,
-			self.client_secret,
+			redirect_uri = self.redirect_uri,
 			scope=''
 		)
 		auth_url, state = oauth.authorization_url(
@@ -44,19 +45,20 @@ class GeniusClient:
 		token = oauth.fetch_token(
 			'https://api.genius.com/oauth/token',		
 			code=auth_code,
-			client_secret=client_secret
+			client_secret=self.client_secret
 		)
 		return token['access_token']
 
 	def __enter__(self):
-		with open(secret_path) as f:
+		with open(self.secret_path) as f:
 			secret_data = json.load(f)
 		self.client_id = secret_data['client_id']
 		self.client_secret = secret_data['client_secret']
 		if 'access_token' in secret_data:
 			self.access_token = secret_data['access_token']
 		else:
-			self.accessToken == self.__getAccessToken()
+			self.access_token = self.__getAccessToken()
+		return self
 
 	def __exit__(self, exc_type, exc_value, tracebrack):
 		secrets_dict = {
@@ -64,8 +66,8 @@ class GeniusClient:
 			'client_secret': self.client_secret,
 			'access_token': self.access_token
 		}	
-		with open(secret_path, 'w') as f:
-			json.dump(secrets_dict)
+		with open(self.secret_path, 'w') as f:
+			json.dump(secrets_dict, f)
 
 	def __apiCall(self, endpoint, params=None):
 		headers = {
@@ -74,7 +76,8 @@ class GeniusClient:
 		}
 		resp = requests.get(
 			'https://api.genius.com' + endpoint,
-			params=params
+			params=params,
+			headers=headers
 		)
 		return json.loads(resp.text)['response']
 
@@ -88,13 +91,13 @@ class GeniusClient:
 		return resp['hits']
 
 	def getSongData(self, song_id):
-		api_path = '/songs/{song_id}'
+		api_path = f'/songs/{song_id}'
 		
 		resp = self.__apiCall(api_path)
 		return resp['song']
 
-	def getAlbumTracks(self, song_id):
-		api_path = '/albums/{album_id}/tracks'
+	def getAlbumTracks(self, album_id):
+		api_path = f'/albums/{album_id}/tracks'
 
 		resp = self.__apiCall(api_path)
 		return resp['tracks']
@@ -102,11 +105,12 @@ class GeniusClient:
 	def __cancelBackslashes(self, text):
 		return_string = ""
 		prev_index = 0
-		curr_index = 0
-		while curr_index >= 0:
-			curr_index = text.find('\\', prev_index+1)
+		curr_index = text.find('\\', prev_index+1)
+		while curr_index != -1:
 			return_string = return_string + text[prev_index:curr_index]
-			prev_index = curr_index+1
+			prev_index = curr_index + 1
+			curr_index = text.find('\\', prev_index + 1)
+		return_string = return_string + text[prev_index:]	
 		return return_string
 
 	def __recursiveAssembleLyrics(self, curr):
@@ -134,8 +138,8 @@ class GeniusClient:
 		)
 		
 		start_index = resp.text.find("window.__PRELOADED_STATE__ = JSON.parse('")
-		end_index = resp.text.find("');\n	   window.__APP_CONFIG__")
-		json_raw = resp.text[start_index+41:end_index+1]
+		end_index = resp.text.find("window.__APP_CONFIG__")
+		json_raw = resp.text[start_index+41:end_index].strip()[:-3]
 		json_cancelled = self.__cancelBackslashes(json_raw).strip()
 		json_data = json.loads(json_cancelled)
 		lyric_data = json_data['songPage']['lyricsData']['body']

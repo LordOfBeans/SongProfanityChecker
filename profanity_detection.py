@@ -229,19 +229,19 @@ class ProfanityClient:
 			
 
 def main():
-	concat_profanities = ['igot', 'porsche', 'toma', 'chnow', 'ackt'] # Not gonna put actual profanity in one of my repos
+	concat_profanities = ['chrid', 'porsche', 'toma', 'chnow', 'ack'] # Not gonna put actual profanity in one of my repos
 	isolate_profanities = ['horse', 'now', 'none', 'match', 'porsche']
 
 	client = ProfanityClient(concat_profanities, isolate_profanities)
 	lyrics = """
-		I got the horses in the back
-		Horse tack is attached
-		Hat is matte black
-		Got the boots that's black to match
-		Ridin' on a horse, ha
-		You can whip your Porsche
-		I been in the valley
-		You ain't been up off that porch, now
+I got the horses in the back
+Horse tack is attached
+Hat is matte black
+Got the boots that's black to match
+Ridin' on a horse, ha
+You can whip your Porsche
+I been in the valley
+You ain't been up off that porch, now
 	"""
 	report = client.checkLyrics(lyrics)
 	groups = report.getOverlapGroups()
