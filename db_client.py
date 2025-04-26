@@ -17,6 +17,11 @@ class DatabaseClient:
 	def commit(self):
 		self.conn.commit()
 
+	def clearAllProfanities(self):
+		self.cur.execute("""
+			DELETE FROM profanities;
+		""")
+
 	def addSong(self, song_id, title):
 		self.cur.execute("""
 			INSERT OR IGNORE INTO songs (song_id, title)
@@ -51,5 +56,11 @@ class DatabaseClient:
 	def fetchProfanityLevels(self):
 		self.cur.execute("""
 			SELECT * FROM profanity_levels
+		""")
+		return self.cur.fetchall()
+
+	def fetchAllProfanities(self):
+		self.cur.execute("""
+			SELECT * FROM profanities
 		""")
 		return self.cur.fetchall()

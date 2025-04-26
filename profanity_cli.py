@@ -1,16 +1,24 @@
 from db_client import DatabaseClient
-from profanity_detection import ProfanityClient, combineProfanityReports
+from profanity_detection import ProfanityClient, combineProfanityReports, OVERLAP_TYPES
 from menu_utils import pickInteger, spacePadString
 
 SPACE_PADDING = 4
 
-def generateFrequencyDict(profanities, songs):
-	detector = profanity_detection.ProfanityClient(profanities, profanities)
-	return_dict = {}
-	for song in songs:
-		lyrics = song[2]
-		report = detector.checkLyrics(lyrics)
-	return return_dict
+
+# --- UTILITY / HELPER FUNCTIONS --- #
+
+# Used in evaluateNewProfanitiesMenu()
+# If phrase is already in profanities table, we can skip it
+# If another phrase in profanities table with either concatenation or subword detection is a substring of current phrase, skip current phrase
+# Helps ensure minimal work is done by both user and client
+def checkSkipProfanity(db_cur, phrase):
+	db_profanities = db_cur.fetchAllProfanities()
+	for db_phrase in db_profanities:
+		if db_phrase[0] == phrase:
+			return db_phrase[0]
+		elif db_phrase[2] in ['concatenation', 'subword'] and db_phrase[0] in phrase:
+			return db_phrase[0]
+	return None
 
 # --- MENU FUNCTIONS --- #
 
@@ -25,17 +33,16 @@ def addProfanityLevelMenu(db_cur):
 	return True
 
 def additionalContextMenu(phrase, info):
-	print('\nADDITIONAL CONTEXT for {phrase}')
+	print(f'\nADDITIONAL CONTEXT for {phrase}')
 	print('0. Go Back')
-	overlap_types = ['concatenation only', 'isolation only', 'simple overlap', 'complex overlap']
-	for i in range(0, 4):
-		curr_type = overlap_types[i]
+	for i in range(0, len(OVERLAP_TYPES)):
+		curr_type = OVERLAP_TYPES[i]
 		curr_count = info[curr_type]['count']
 		print(f'{i+1}. View cases of {curr_type} ({curr_count})')
-	choice = pickInteger(0, len(overlap_types))
+	choice = pickInteger(0, len(OVERLAP_TYPES))
 	if choice == 0:
 		return
-	chosen_type = overlap_types[choice - 1]
+	chosen_type = OVERLAP_TYPES[choice - 1]
 	
 	print('\nExamples:')
 	groups = info[chosen_type]['groups']
@@ -69,31 +76,34 @@ def evaluatePhraseMenuOne(db_cur, phrase, info):
 	total = info['total']
 	print(f'Total: {total}')
 	print('Overlap Statistics:')
-	for overlap_type in ['concatenation only', 'isolation only', 'simple overlap', 'complex overlap']:
+	for overlap_type in OVERLAP_TYPES:
 		overlap_count = info[overlap_type]['count']
 		print(spacePadString(f'{overlap_type}: {overlap_count}', SPACE_PADDING))
 
 	while True:
 		print(f'\nEVALUATION STAGE ONE OPTIONS for {phrase}')
 		print('0. Quit Evaluating')
-		print('1. Assign Concatenation-based Detection')
+		print('1. Assign Subword-based Detection')
 		print('2. Assign Isolation-based Detection')
-		print('3. View Additional Context') 
-		print('4. Skip')
-		choice = pickInteger(0, 4)
+		print('3. Assign Concatenation-based Detection')
+		print('4. View Additional Context') 
+		print('5. Skip')
+		choice = pickInteger(0, 5)
 		if choice == 0:
 			return True
 		elif choice == 1:
-			if evaluatePhraseMenuTwo(db_cur, phrase, info, "concatenation"):
+			if evaluatePhraseMenuTwo(db_cur, phrase, info, 'subword'):
 				break
 		elif choice == 2:
-			if evaluatePhraseMenuTwo(db_cur, phrase, info, "isolation"):
+			if evaluatePhraseMenuTwo(db_cur, phrase, info, 'isolation'):
 				break
 		elif choice == 3:
-			additionalContextMenu(phrase, info)
+			if evaluatePhraseMenuTwo(db_cur, phrase, info, 'concatenation'):
+				break
 		elif choice == 4:
-			break
-	
+			additionalContextMenu(phrase, info)
+		elif choice == 5:
+			break	
 
 def evaluateNewProfanitiesMenu(db_cur):
 	print('\nEVALUATE NEW PROFANITIES')
@@ -104,7 +114,7 @@ def evaluateNewProfanitiesMenu(db_cur):
 	with open('profanity.txt') as f:
 		for line in f:
 			profanities.append(line.strip().lower()) # Profanities get converted to lowercase
-	profanity_detector = ProfanityClient(profanities, profanities) # Use both methods for each profanity; done purely for evaluation
+	profanity_detector = ProfanityClient(profanities, profanities, profanities) # Use both methods for each profanity; done purely for evaluation
 
 	# Get data based on all songs in database
 	print('Retrieiving all song lyrics from database...')
@@ -119,16 +129,19 @@ def evaluateNewProfanitiesMenu(db_cur):
 	sorted_items = sorted(combined_dict.items(), key=lambda x: x[1]['total'], reverse=True) # Sort by total found
 	unique_count = len(sorted_items)
 	print(f'Found {unique_count} unique profane phrases across all songs')
-	eval_max = 25 # Mainly for debugging
 
 	# Have user choose how to categorize each profanity
-	for i in range(0, eval_max):
+	for i in range(0, unique_count):
 		phrase = sorted_items[i][0]
+		skippable = checkSkipProfanity(db_cur, phrase)
+		if skippable is not None:
+			print(f'\nSkipped evaluation of "{phrase}" due to overlap with "{skippable}"')
+			continue
 		info = sorted_items[i][1]
-		print(f'\nEVALUATE PROFANITY {i+1} of {eval_max}')
+		print(f'\nEVALUATE PROFANITY {i+1} of {unique_count}')
 		if evaluatePhraseMenuOne(db_cur, phrase, info):
-			break
-		
+			break		
+
 
 def mainMenu(db_cur):
 	while True:
@@ -136,7 +149,8 @@ def mainMenu(db_cur):
 		print('0. Commit and Quit')
 		print('1. Add Profanity Level')
 		print('2. Evaluate New Profanities')
-		choice = pickInteger(0, 2)
+		print('3. Clear All Profanities')
+		choice = pickInteger(0, 3)
 		if choice == 0:
 			db_cur.commit()
 			return
@@ -144,6 +158,8 @@ def mainMenu(db_cur):
 			addProfanityLevelMenu(db_cur)
 		elif choice == 2:
 			evaluateNewProfanitiesMenu(db_cur)
+		elif choice == 3:
+			db_cur.clearAllProfanities()
 
 def main():
 	with DatabaseClient('database.db') as db_cur:
