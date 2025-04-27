@@ -194,7 +194,7 @@ class SubwordDetector:
 				checked = self.__recursiveCheck(curr_word, j, self.trie)
 				if checked is not None:
 					true_start_index = array_map[i] + j
-					true_end_index = array_map[i] + j + len(checked) - 1
+					true_end_index = array_map[i] + j + len(checked)
 					profanity = Profanity(checked, lyrics, true_start_index, true_end_index, 'subword')
 					profanities.append(profanity)
 		return profanities

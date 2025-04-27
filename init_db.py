@@ -21,6 +21,20 @@ def main():
 		)
 	""")
 
+	# Best way I can find to add or remove columns from a table w/o getting rid of whole table
+	res = cur.execute("""
+		PRAGMA TABLE_INFO(songs)
+	""")
+	columns = res.fetchAll()
+	column_names = []
+	for column_info in columns:
+		column_names.append(column_info[1])
+	if 'lyrics_path' not in column_names:
+		cur.execute("""
+			ALTER TABLE songs
+			ADD COLUMN lyrics_path TEXT DEFAULT NULL
+		""")
+
 	cur.execute("""
 		CREATE TABLE IF NOT EXISTS profanities (
 			phrase TEXT PRIMARY KEY,

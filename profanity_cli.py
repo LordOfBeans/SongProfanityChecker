@@ -142,7 +142,6 @@ def evaluateNewProfanitiesMenu(db_cur):
 		if evaluatePhraseMenuOne(db_cur, phrase, info):
 			break		
 
-
 def mainMenu(db_cur):
 	while True:
 		print('\nMAIN MENU')

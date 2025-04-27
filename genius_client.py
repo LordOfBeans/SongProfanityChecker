@@ -49,6 +49,7 @@ class GeniusClient:
 		)
 		return token['access_token']
 
+	# TODO: Change approach to avoid using 'with'; get and save access token during init
 	def __enter__(self):
 		with open(self.secret_path) as f:
 			secret_data = json.load(f)
@@ -130,7 +131,7 @@ class GeniusClient:
 	def scrapeSongLyrics(self, lyrics_path):
 		full_url = 'https://genius.com' + lyrics_path
 		headers = {
-			'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:137.0) Gecko/20100101 Firefox/137.0'
+			'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.10 Safari/605.1.1' # A very common User-Agent
 		}
 		resp = requests.get(
 			full_url,
@@ -144,3 +145,20 @@ class GeniusClient:
 		json_data = json.loads(json_cancelled)
 		lyric_data = json_data['songPage']['lyricsData']['body']
 		return self.__recursiveAssembleLyrics(lyric_data)
+
+
+def main():
+	with GeniusClient('secret.json') as genius:
+		print('Searching for "Blinding Lights"')
+		search_hits = genius.songSearch('Blinding Lights')
+		song_id = search_hits[0]['result']['id']
+		print('Retrieving song data to get album ID')
+		song_data = genius.getSongData(song_id)
+		album_id = song_data['album']['id']
+		print('Retrieving tracks on album')
+		album_tracks = genius.getAlbumTracks(album_id)
+		first_track_lyrics_path = album_tracks[0]['song']['path']
+		track_info = genius.scrapeSongLyrics(first_track_lyrics_path)	
+
+if __name__ == '__main__': 
+	main()
