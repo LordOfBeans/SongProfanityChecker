@@ -146,7 +146,6 @@ class GeniusClient:
 		lyric_data = json_data['songPage']['lyricsData']['body']
 		return self.__recursiveAssembleLyrics(lyric_data)
 
-
 def main():
 	with GeniusClient('secret.json') as genius:
 		print('Searching for "Blinding Lights"')
@@ -154,9 +153,11 @@ def main():
 		song_id = search_hits[0]['result']['id']
 		print('Retrieving song data to get album ID')
 		song_data = genius.getSongData(song_id)
+		print(json.dumps(song_data['primary_artists'], indent=4))
 		album_id = song_data['album']['id']
 		print('Retrieving tracks on album')
 		album_tracks = genius.getAlbumTracks(album_id)
+		print(json.dumps(album_tracks[0], indent=4))
 		first_track_lyrics_path = album_tracks[0]['song']['path']
 		track_info = genius.scrapeSongLyrics(first_track_lyrics_path)	
 

@@ -5,6 +5,13 @@ DB_FILE = 'database.db'
 def main():
 	conn = sqlite3.connect(DB_FILE)
 	cur = conn.cursor()
+
+	cur.execute("""
+		CREATE TABLE IF NOT EXISTS artists (
+			artist_id INT PRIMARY KEY,
+			name TEXT NOT NULL
+		)
+	""")
 	
 	cur.execute("""
 		CREATE TABLE IF NOT EXISTS albums (
@@ -13,6 +20,7 @@ def main():
 		)
 	""")
 
+	# TODO: Investigate primary artist column if that's a fairly universal genius feature
 	cur.execute("""
 		CREATE TABLE IF NOT EXISTS songs (
 			song_id INT PRIMARY KEY,
@@ -25,7 +33,7 @@ def main():
 	res = cur.execute("""
 		PRAGMA TABLE_INFO(songs)
 	""")
-	columns = res.fetchAll()
+	columns = res.fetchall()
 	column_names = []
 	for column_info in columns:
 		column_names.append(column_info[1])
@@ -34,6 +42,28 @@ def main():
 			ALTER TABLE songs
 			ADD COLUMN lyrics_path TEXT DEFAULT NULL
 		""")
+	if 'pageviews' not in column_names:
+		cur.execute("""
+			ALTER TABLE songs
+			ADD COLUMN pageviews INT DEFAULT 0
+		""")
+
+	cur.execute("""
+		CREATE TABLE IF NOT EXISTS album_songs (
+			album_id INT,
+			song_id INT,
+			track_number INT,
+			PRIMARY KEY (album_id, song_id)
+		)
+	""")
+
+	cur.execute("""
+		CREATE TABLE IF NOT EXISTS song_artists (
+			song_id INT,
+			artist_id INT,
+			PRIMARY KEY (song_id, artist_id)
+		)
+	""")
 
 	cur.execute("""
 		CREATE TABLE IF NOT EXISTS profanities (

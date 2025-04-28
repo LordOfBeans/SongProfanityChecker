@@ -17,11 +17,36 @@ class DatabaseClient:
 	def commit(self):
 		self.conn.commit()
 
-	def addSong(self, song_id, title):
+	def addArtist(self, artist_id, name):
 		self.cur.execute("""
-			INSERT OR IGNORE INTO songs (song_id, title)
+			INSERT OR IGNORE INTO artists (artist_id, name)
 			VALUES (?, ?)
-		""", [song_id, title])
+		""", [artist_id, name])
+
+	def addAlbum(self, album_id, title):
+		self.cur.execute("""
+			INSERT OR IGNORE INTO albums (album_id, title)
+			VALUES (?, ?)
+		""", [album_id, title])
+
+	def addSong(self, song_id, title, lyrics_path, pageviews):
+		self.cur.execute("""
+			INSERT OR IGNORE INTO songs (song_id, title, lyrics_path, pageviews)
+			VALUES (?, ?, ?, ?)
+		""", [song_id, title, lyrics_path, pageviews])
+
+	def addSongToAlbum(self, song_id, album_id, track_number):
+		self.cur.execute("""
+			INSERT OR IGNORE INTO album_songs (album_id, song_id, track_number)
+			VALUES (?, ?, ?)
+		""", [album_id, song_id, track_number])
+
+	def addArtistToSong(self, artist_id, song_id):
+		self.cur.execute("""
+			INSERT OR IGNORE INTO song_artists (song_id, artist_id)
+			VALUES (?, ?)
+		""", [song_id, artist_id])
+		
 
 	def addSongLyrics(self, song_id, lyrics):
 		self.cur.execute("""
@@ -61,9 +86,13 @@ class DatabaseClient:
 		return self.cur.fetchall()
 
 	# TODO: Delete from more tables as I add more tables
-	def clearAllSongs(self):
+	def clearAllMusic(self):
 		self.cur.execute("""
-			DELETE FROM songs
+			DELETE FROM artists;
+			DELETE FROM albums;
+			DELETE FROM songs;
+			DELETE FROM album_songs;
+			DELETE FROM song_artists 
 		""")
 
 	def clearAllProfanities(self):
