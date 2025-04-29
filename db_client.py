@@ -67,17 +67,57 @@ class DatabaseClient:
 			VALUES (?, ?, ?)
 		""", [phrase, level, detection])
 
+	def fetchAllAlbums(self):
+		self.cur.execute("""
+			SELECT * FROM albums
+		""")
+		return self.cur.fetchall()
+
+	def fetchAlbumSongs(self, album_id):
+		self.cur.execute("""
+			SELECT song_id, title, lyrics, lyrics_path, pageviews, track_number
+			FROM album_songs NATURAL JOIN songs
+			WHERE album_id = ?
+		""", [album_id])
+		return self.cur.fetchall()
+
 	def fetchAllSongs(self):
 		self.cur.execute("""
 			SELECT * FROM songs	
 		""")
 		return self.cur.fetchall()
 
-	def fetchProfanityLevels(self):
+	def fetchLevelPenaltyDict(self):
 		self.cur.execute("""
-			SELECT * FROM profanity_levels
+			SELECT level, points FROM profanity_levels
 		""")
-		return self.cur.fetchall()
+		return_dict = {}
+		for item in self.cur.fetchall():
+			level = item[0]
+			points = item[1]
+			return_dict[level] = points
+		return return_dict
+
+	def fetchPhraseListByDetection(self, detection):
+		self.cur.execute("""
+			SELECT phrase FROM profanities
+			WHERE detection = ?
+		""", [detection])
+		phrase_list = []
+		for item in self.cur.fetchall():
+			phrase_list.append(item[0])
+		return phrase_list
+
+	def fetchProfanityLevelDict(self):
+		self.cur.execute("""
+			SELECT phrase, level FROM profanities
+		""")
+		phrase_dict = {}
+		for item in self.cur.fetchall():
+			phrase = item[0]
+			level = item[1]
+			phrase_dict[phrase] = level
+		return phrase_dict
 
 	def fetchAllProfanities(self):
 		self.cur.execute("""
@@ -87,7 +127,7 @@ class DatabaseClient:
 
 	# TODO: Delete from more tables as I add more tables
 	def clearAllMusic(self):
-		self.cur.execute("""
+		self.cur.executescript("""
 			DELETE FROM artists;
 			DELETE FROM albums;
 			DELETE FROM songs;
@@ -99,5 +139,3 @@ class DatabaseClient:
 		self.cur.execute("""
 			DELETE FROM profanities
 		""")
-
-

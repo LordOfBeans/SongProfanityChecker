@@ -114,7 +114,9 @@ def evaluateNewProfanitiesMenu(db_cur):
 	with open('profanity.txt') as f:
 		for line in f:
 			profanities.append(line.strip().lower()) # Profanities get converted to lowercase
-	profanity_detector = ProfanityClient(profanities, profanities, profanities) # Use both methods for each profanity; done purely for evaluation
+	profanity_levels = db_cur.fetchProfanityLevelDict()
+	level_penalties = db_cur.fetchLevelPenaltyDict()
+	profanity_detector = ProfanityClient(profanities, profanities, profanities, profanity_levels, level_penalties) # Use all detection methods for each profanity; done purely for evaluation
 
 	# Get data based on all songs in database
 	print('Retrieiving all song lyrics from database...')
