@@ -408,7 +408,8 @@ def combineProfanityReports(reports):
 	return_dict = {}
 	for report in reports:
 		report_counts = report.getProfanityCounts()
-		for phrase, info in report_counts.items():
+		phrase_dict = report_counts['profanities']
+		for phrase, info in phrase_dict.items():
 			# Mirrors ProfanityClient.ProfanityReport.getProfanityCounts()
 			if phrase not in return_dict:
 				return_dict[phrase] = {
@@ -420,7 +421,7 @@ def combineProfanityReports(reports):
 						'groups': []
 				}
 			phrase_dict = return_dict[phrase]
-			phrase_dict['total'] += info['total']
+			phrase_dict['total'] += info['count']
 			for overlap_type in OVERLAP_TYPES:
 				phrase_dict[overlap_type]['count'] += info[overlap_type]['count']
 				phrase_dict[overlap_type]['groups'] += info[overlap_type]['groups']

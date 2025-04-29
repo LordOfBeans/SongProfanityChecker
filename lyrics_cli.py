@@ -15,7 +15,7 @@ class LyricsCli:
 			self.db_cur.fetchProfanityLevelDict(),
 			self.db_cur.fetchLevelPenaltyDict()
 		)
-		self.PENALTY_THRESHOLD = 12
+		self.PENALTY_MAXIMUM = 12
 		self.SPACE_PADDING = 4
 	
 	def songSearchMenu(self):
@@ -103,7 +103,7 @@ class LyricsCli:
 
 	def profanityCheckAlbumMenu(self, album_id, album_title):
 		print(f'\nALBUM PROFANITY REPORT for {album_title}')
-		album_tracks = sorted(self.db_cur.fetchAlbumSongs(album_id), key=lambda x: x[5])
+		album_tracks = sorted(self.db_cur.fetchAlbumSongs(album_id), key=lambda x: x[5] if x[5] is not None else 4096)
 		while True:
 			reports = []
 			for track in album_tracks:
@@ -119,9 +119,12 @@ class LyricsCli:
 				report_dict = report.getProfanityCounts()
 				total_penalty = report_dict['total_penalty']
 				penalty_str = str(total_penalty)
-				if total_penalty < self.PENALTY_THRESHOLD:
+				if total_penalty <= self.PENALTY_MAXIMUM:
 					penalty_str += ' PASSES!'
+				profanities = list(report_dict['profanities'].keys())
+				profanities_str = ', '.join(profanities)
 				print(spacePadString(f'Penalty Total: {penalty_str}', self.SPACE_PADDING))
+				print(spacePadString(f'Profanities: {profanities_str}', self.SPACE_PADDING))
 				print(spacePadString(f'Pageviews: {pageviews}', self.SPACE_PADDING))
 				print(spacePadString(f'Lyrics At: https://genius.com{lyrics_path}', self.SPACE_PADDING))
 			choice = pickInteger(0, len(album_tracks))
@@ -138,7 +141,7 @@ class LyricsCli:
 		while True:
 			print('\nCHOOSE ALBUM FOR PROFANITY CHECK')
 			print('0. Go Back')
-			albums = sorted(self.db_cur.fetchAllAlbums(), key=lambda x:x[1])
+			albums = self.db_cur.fetchAllAlbums()
 			i = 0
 			for album_id, title in albums:
 				i += 1

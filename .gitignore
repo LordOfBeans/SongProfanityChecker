@@ -1,3 +1,10 @@
+secret.json
+profanity-split.json
+profanity.json
+profanity.txt
+database.db
+secret_backup.json
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

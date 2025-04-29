@@ -54,7 +54,7 @@ def additionalContextMenu(phrase, info):
 # Returns True if user chose a profanity level, otherwise False
 # Performs insertion of profane phrase into database
 def evaluatePhraseMenuTwo(db_cur, phrase, info, method):	
-	levels = sorted(db_cur.fetchProfanityLevels(), key=lambda x: x[1]) # Sort by points ascending
+	levels = sorted(db_cur.fetchLevelPenaltyDict().items(), key=lambda x: x[1]) # Sort by points ascending
 
 	print(f'\nEVALUATION STAGE TWO OPTIONS for {phrase}')
 	print('0. Go Back')
@@ -114,8 +114,11 @@ def evaluateNewProfanitiesMenu(db_cur):
 	with open('profanity.txt') as f:
 		for line in f:
 			profanities.append(line.strip().lower()) # Profanities get converted to lowercase
-	profanity_levels = db_cur.fetchProfanityLevelDict()
-	level_penalties = db_cur.fetchLevelPenaltyDict()
+	# Faking profanity levels as they're not relevant to this test
+	level_penalties = {'Testing': 1}
+	profanity_levels = {}
+	for phrase in profanities:
+		profanity_levels[phrase] = 'Testing'
 	profanity_detector = ProfanityClient(profanities, profanities, profanities, profanity_levels, level_penalties) # Use all detection methods for each profanity; done purely for evaluation
 
 	# Get data based on all songs in database
