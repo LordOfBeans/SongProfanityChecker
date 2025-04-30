@@ -41,7 +41,7 @@ class LyricsCli:
 		album_tracks = self.genius.getAlbumTracks(album_id)
 		print(f'\nALBUM OPTIONS for {album_title}')
 		print('0. Go Back')
-		print('1. Download Lyrics for All Tracks')
+		print('1. Scrape Lyrics for All Tracks')
 		choice = pickInteger(0, 1)
 		if choice == 0:
 			return
@@ -56,7 +56,7 @@ class LyricsCli:
 				if 'pageviews' in track['song']['stats']:
 					pageviews = track['song']['stats']['pageviews']
 				self.db_cur.addSong(track_id, track_title, lyrics_path, pageviews)
-				print(f'Downloading lyrics for {track_title}')
+				print(f'Scraping lyrics for {track_title}')
 				lyrics = self.genius.scrapeSongLyrics(lyrics_path)
 				self.db_cur.addSongLyrics(track_id, lyrics)
 				self.db_cur.addSongToAlbum(track_id, album_id, track_number)
@@ -69,6 +69,41 @@ class LyricsCli:
 			print(f'Committing {album_title} to database')
 			self.db_cur.commit()	
 	
+	def artistOptionsMenu(self, artist_id, artist_name):
+		print(f'\nARTIST OPTIONS for {artist_name}')
+		print('0. Go Back')
+		print('1. Scrape Lyrics for All Songs')
+		choice = pickInteger(0, 1)
+		if choice == 0:
+			return
+		else:
+			page = 1
+			while page is not None:
+				resp = self.genius.getArtistSongs(artist_id, page=page)
+				songs = resp['songs']
+				for song in songs:
+					song_id = song['id']	
+					song_title = song['title']
+					if self.db_cur.checkSongHasLyrics(song_id):
+						print(f'Performed scraping for {song_title} at an earlier date')
+						continue
+					lyrics_path = song['path']
+					pageviews = 0
+					if 'pageviews' in song['stats']:
+						pageviews = song['stats']['pageviews']
+					self.db_cur.addSong(song_id, song_title, lyrics_path, pageviews)
+					print(f'Scraping lyrics for {song_title}')
+					lyrics = self.genius.scrapeSongLyrics(lyrics_path)
+					self.db_cur.addSongLyrics(song_id, lyrics)
+					for artist in song['primary_artists']:
+						song_artist_id = artist['id']
+						song_artist_name = artist['name']
+						self.db_cur.addArtist(song_artist_id, song_artist_name)
+						self.db_cur.addArtistToSong(song_artist_id, song_id)	
+				print(f'Committing page {page} of popular {artist_name} songs to database')
+				self.db_cur.commit()
+				page = resp['next_page']	
+
 	def songOptionsMenu(self, song_id):
 		song_data = self.genius.getSongData(song_id)
 		song_title = song_data['full_title']
@@ -77,9 +112,10 @@ class LyricsCli:
 			print('0. Go Back')
 			print('1. Download Song Lyrics')
 			album = song_data['album']
-			album_title = album['name']
-			print(f'2. Go to Album: {album_title}')
-			artists = album['primary_artists']
+			if album is not None:
+				album_title = album['name']
+				print(f'2. Go to Album: {album_title}')
+			artists = song_data['primary_artists']
 			for i in range(0, len(artists)):
 				curr_artist_name = artists[i]['name']
 				print(f'{i+3}. Go to Artist: {curr_artist_name}')
@@ -92,7 +128,10 @@ class LyricsCli:
 				album_id = album['id']
 				self.albumOptionsMenu(album_id, album_title)
 			else:
-				return
+				chosen_artist = artists[choice-3]
+				artist_id = chosen_artist['id']
+				artist_name = chosen_artist['name']
+				self.artistOptionsMenu(artist_id, artist_name)
 
 	def investigateSongReportMenu(self, song_id, song_name, report):
 		print(f'\nSONG PROFANITY REPORT for {song_name}')
@@ -102,9 +141,10 @@ class LyricsCli:
 		
 
 	def profanityCheckAlbumMenu(self, album_id, album_title):
-		print(f'\nALBUM PROFANITY REPORT for {album_title}')
 		album_tracks = sorted(self.db_cur.fetchAlbumSongs(album_id), key=lambda x: x[5] if x[5] is not None else 4096)
 		while True:
+			print(f'\nALBUM PROFANITY REPORT for {album_title}')
+			print('0. Go Back')
 			reports = []
 			for track in album_tracks:
 				number = track[5]
@@ -152,6 +192,71 @@ class LyricsCli:
 			else:
 				album_choice = albums[choice - 1]
 				self.profanityCheckAlbumMenu(album_choice[0], album_choice[1])
+
+	def profanityCheckArtistMenu(self, artist_id, artist_name):
+		artist_songs = self.db_cur.fetchArtistSongs(artist_id)
+		while True:
+			print(f'\nARTIST SONGS PROFANITY REPORT for {artist_name}')
+			print('0. Go Back')
+			reports = []
+			i = 0
+			for song in artist_songs:
+				i += 1
+				lyrics = song[2]
+				report = self.checker.checkLyrics(lyrics)
+				reports.append(report)
+				report_dict = report.getProfanityCounts()
+				total_penalty = report_dict['total_penalty']
+				if total_penalty <= self.PENALTY_MAXIMUM:
+					song_title = song[1]
+					lyrics_path = song[3]
+					pageviews = song[4]
+					profanities = list(report_dict['profanities'].keys())
+					profanities_str = ', '.join(profanities)
+					print(f'{i}. {song_title}')
+					print(spacePadString(f'Penalty Total: {total_penalty}', self.SPACE_PADDING))
+					print(spacePadString(f'Profanities: {profanities_str}', self.SPACE_PADDING))
+					print(spacePadString(f'Pageviews: {pageviews}', self.SPACE_PADDING))
+					print(spacePadString(f'Lyrics At: https://genius.com{lyrics_path}', self.SPACE_PADDING))
+			choice = pickInteger(0, len(reports))
+			if choice == 0:
+				return
+			else:
+				chosen_song = artist_songs[choice - 1]
+				song_id = chosen_song[0]
+				song_name = chosen_song[1]
+				song_report = reports[choice - 1]
+				self.investigateSongReportMenu(song_id, song_name, song_report)
+
+	def chooseArtistCheckMenu(self):
+		while True:
+			print('\nCHOOSE ARTIST FOR PROFANITY CHECK')
+			print('0. Go Back')
+			artists = sorted(self.db_cur.fetchAllArtists(), key=lambda x: x[1])
+			i = 0
+			for artist_id, name in artists:
+				i += 1
+				print(f'{i}. {name}')
+			choice = pickInteger(0, len(artists))
+			if choice == 0:
+				return
+			else:
+				artist_choice = artists[choice - 1]
+				self.profanityCheckArtistMenu(artist_choice[0], artist_choice[1])
+
+	def profanityCheckMenu(self):
+		while True:
+			print('\nPROFANITY CHECK VARIETIES')
+			print('0. Go Back')
+			print('1. Check Albums')
+			print('2. Check by Artist')
+			choice = pickInteger(0, 2)
+			if choice == 0:
+				return
+			elif choice == 1:
+				self.chooseAlbumCheckMenu()
+			elif choice == 2:
+				self.chooseArtistCheckMenu()
 	
 	def mainMenu(self):
 		while True:
@@ -170,7 +275,7 @@ class LyricsCli:
 					continue
 				self.songOptionsMenu(track)
 			elif choice == 2:
-				self.chooseAlbumCheckMenu()
+				self.profanityCheckMenu()
 			elif choice == 3:
 				self.db_cur.clearAllMusic()
 

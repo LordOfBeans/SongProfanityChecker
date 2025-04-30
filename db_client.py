@@ -67,9 +67,26 @@ class DatabaseClient:
 			VALUES (?, ?, ?)
 		""", [phrase, level, detection])
 
+	def checkSongHasLyrics(self, song_id):
+		self.cur.execute("""
+			SELECT lyrics FROM songs WHERE song_id = ?
+		""", [song_id])
+		res = self.cur.fetchall()
+		if len(res) == 0:
+			return False
+		if res[0][0] is None:
+			return False
+		return True
+
 	def fetchAllAlbums(self):
 		self.cur.execute("""
 			SELECT * FROM albums
+		""")
+		return self.cur.fetchall()
+
+	def fetchAllArtists(self):
+		self.cur.execute("""
+			SELECT * FROM artists
 		""")
 		return self.cur.fetchall()
 
@@ -79,6 +96,14 @@ class DatabaseClient:
 			FROM album_songs NATURAL JOIN songs
 			WHERE album_id = ?
 		""", [album_id])
+		return self.cur.fetchall()
+
+	def fetchArtistSongs(self, artist_id):
+		self.cur.execute("""
+			SELECT song_id, title, lyrics, lyrics_path, pageviews
+			FROM song_artists NATURAL JOIN songs
+			WHERE artist_id = ?
+		""", [artist_id])
 		return self.cur.fetchall()
 
 	def fetchAllSongs(self):

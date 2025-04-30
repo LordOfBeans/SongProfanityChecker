@@ -103,6 +103,16 @@ class GeniusClient:
 		resp = self.__apiCall(api_path)
 		return resp['tracks']
 
+	def getArtistSongs(self, artist_id, page=1):
+		api_path = f'/artists/{artist_id}/songs'
+		params = {
+			'sort': 'popularity',
+			'per_page': 10,
+			'page': page
+		}
+		resp = self.__apiCall(api_path, params=params)
+		return resp
+
 	def __cancelBackslashes(self, text):
 		return_string = ""
 		prev_index = 0
