@@ -84,22 +84,25 @@ class LyricsCli:
 				for song in songs:
 					song_id = song['id']	
 					song_title = song['title']
-					if self.db_cur.checkSongHasLyrics(song_id):
-						print(f'Performed scraping for {song_title} at an earlier date')
-						continue
 					lyrics_path = song['path']
 					pageviews = 0
 					if 'pageviews' in song['stats']:
 						pageviews = song['stats']['pageviews']
 					self.db_cur.addSong(song_id, song_title, lyrics_path, pageviews)
 					print(f'Scraping lyrics for {song_title}')
-					lyrics = self.genius.scrapeSongLyrics(lyrics_path)
-					self.db_cur.addSongLyrics(song_id, lyrics)
+					if self.db_cur.checkSongHasLyrics(song_id):
+						print(f'Already scraped lyrics for {song_title}')
+					elif song['lyrics_state'] != 'complete':
+						print(f'Skipped {song_title} due to incomplete lyrics')
+					else:
+						lyrics = self.genius.scrapeSongLyrics(lyrics_path)
+						self.db_cur.addSongLyrics(song_id, lyrics)
 					for artist in song['primary_artists']:
 						song_artist_id = artist['id']
 						song_artist_name = artist['name']
 						self.db_cur.addArtist(song_artist_id, song_artist_name)
 						self.db_cur.addArtistToSong(song_artist_id, song_id)	
+					self.db_cur.addArtistToSong(artist_id, song_id) # If I'm searching for an artist's songs, I probably also want them to be referenced for songs they're featured on
 				print(f'Committing page {page} of popular {artist_name} songs to database')
 				self.db_cur.commit()
 				page = resp['next_page']	
@@ -203,6 +206,8 @@ class LyricsCli:
 			for song in artist_songs:
 				i += 1
 				lyrics = song[2]
+				if lyrics is None:
+					continue
 				report = self.checker.checkLyrics(lyrics)
 				reports.append(report)
 				report_dict = report.getProfanityCounts()
