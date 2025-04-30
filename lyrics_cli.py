@@ -194,7 +194,7 @@ class LyricsCli:
 				self.profanityCheckAlbumMenu(album_choice[0], album_choice[1])
 
 	def profanityCheckArtistMenu(self, artist_id, artist_name):
-		artist_songs = self.db_cur.fetchArtistSongs(artist_id)
+		artist_songs = sorted(self.db_cur.fetchArtistSongs(artist_id), key=lambda x: x[4], reverse=True)
 		while True:
 			print(f'\nARTIST SONGS PROFANITY REPORT for {artist_name}')
 			print('0. Go Back')
@@ -257,12 +257,44 @@ class LyricsCli:
 				self.chooseAlbumCheckMenu()
 			elif choice == 2:
 				self.chooseArtistCheckMenu()
+
+	def  pasteAlbumMenu(self):
+		url = input('Paste album URL: ')
+		print('Scraping page for the album ID')
+		album_id, album_title = self.genius.scrapeAlbumData(url)	
+		self.albumOptionsMenu(album_id, album_title)
+
+	def pasteArtistMenu(self):
+		url = input('Past artist URL: ')
+		print('Scraping page for the artist ID')
+		artist_id, artist_name = self.genius.scrapeArtistData(url)	
+		self.artistOptionsMenu(artist_id, artist_name)
+
+	def scrapeLyricsMenu(self):
+		while True:
+			print('\nSCRAPE LYRICS OPTIONS')
+			print('0. Go Back')
+			print('1. Genius Song Search')
+			print('2. Paste Album URL')
+			print('3. Paste Artist URL')
+			choice = pickInteger(0, 3)
+			if choice == 0:
+				return
+			elif choice == 1:
+				track = self.songSearchMenu()
+				if track is None:
+					continue
+				self.songOptionsMenu(track)
+			elif choice == 2:
+				self.pasteAlbumMenu()
+			elif choice == 3:
+				self.pasteArtistMenu()
 	
 	def mainMenu(self):
 		while True:
 			print('\nMAIN MENU')
 			print('0. Quit and Commit')
-			print('1. Genius Song Search')
+			print('1. Scrape Song Lyrics')
 			print('2. Profanity Check')
 			print('3. Clear All Music')
 			choice = pickInteger(0, 3)
@@ -270,10 +302,7 @@ class LyricsCli:
 				self.db_cur.commit()
 				break
 			elif choice == 1:
-				track = self.songSearchMenu()
-				if track is None:
-					continue
-				self.songOptionsMenu(track)
+				self.scrapeLyricsMenu()
 			elif choice == 2:
 				self.profanityCheckMenu()
 			elif choice == 3:

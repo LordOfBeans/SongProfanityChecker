@@ -4,6 +4,7 @@ import webbrowser
 import socket
 import json
 import oauthlib
+from bs4 import BeautifulSoup
 
 class GeniusClient:
 
@@ -138,10 +139,11 @@ class GeniusClient:
 				return '\n'
 		return ''
 
+	# Doesn't even use BeautifulSoup, funnily enough
 	def scrapeSongLyrics(self, lyrics_path):
 		full_url = 'https://genius.com' + lyrics_path
 		headers = {
-			'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.10 Safari/605.1.1' # A very common User-Agent
+			'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.10 Safari/605.1.1' # A very common User-Agent as of April 2025
 		}
 		resp = requests.get(
 			full_url,
@@ -156,20 +158,58 @@ class GeniusClient:
 		lyric_data = json_data['songPage']['lyricsData']['body']
 		return self.__recursiveAssembleLyrics(lyric_data)
 
+	# Unfortunately the Genius API has no way to directly search for albums
+	# You can search for a song and then get the album it's on, but this often presents issues
+	def scrapeAlbumData(self, album_url):
+		headers = {
+			'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.10 Safari/605.1.1'
+		}
+		resp = requests.get(
+			album_url,
+			headers=headers
+		)
+		soup = BeautifulSoup(resp.text, features='html.parser')
+		metadata_raw = soup.find('meta', {'itemprop': 'page_data'})['content']
+		metadata_dict = json.loads(metadata_raw)
+		album_id = metadata_dict['album']['id']
+		album_title = metadata_dict['album']['name']
+		return album_id, album_title
+
+	def scrapeArtistData(self, artist_url):
+		headers = {
+			'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.10 Safari/605.1.1'
+		}
+		resp = requests.get(
+			artist_url,
+			headers=headers
+		)
+		soup = BeautifulSoup(resp.text, features='html.parser')
+		metadata_raw = soup.find('meta', {'itemprop': 'page_data'})['content']
+		metadata_dict = json.loads(metadata_raw)
+		artist_id = metadata_dict['artist']['id']
+		artist_name = metadata_dict['artist']['name']
+		return artist_id, artist_name
+
 def main():
 	with GeniusClient('secret.json') as genius:
-		print('Searching for "Blinding Lights"')
-		search_hits = genius.songSearch('Blinding Lights')
-		song_id = search_hits[0]['result']['id']
-		print('Retrieving song data to get album ID')
-		song_data = genius.getSongData(song_id)
-		print(json.dumps(song_data['primary_artists'], indent=4))
-		album_id = song_data['album']['id']
-		print('Retrieving tracks on album')
-		album_tracks = genius.getAlbumTracks(album_id)
-		print(json.dumps(album_tracks[0], indent=4))
-		first_track_lyrics_path = album_tracks[0]['song']['path']
-		track_info = genius.scrapeSongLyrics(first_track_lyrics_path)	
+#		print('Searching for "Blinding Lights"')
+#		search_hits = genius.songSearch('Blinding Lights')
+#		song_id = search_hits[0]['result']['id']
+#		print('Retrieving song data to get album ID')
+#		song_data = genius.getSongData(song_id)
+#		album_id = song_data['album']['id']
+#		print(f'Got album_id {album_id} from song search')
+#		print('Retrieving tracks on album')
+#		album_tracks = genius.getAlbumTracks(album_id)
+#		print(json.dumps(album_tracks[0], indent=4))
+#		first_track_lyrics_path = album_tracks[0]['song']['path']
+#		track_info = genius.scrapeSongLyrics(first_track_lyrics_path)	
+		album_url = 'https://genius.com/albums/The-weeknd/The-highlights-deluxe'
+		scraped_album_id = genius.scrapeAlbumData(album_url)[0]
+		print(f'Scraped album id: {scraped_album_id}')
+		artist_url = 'https://genius.com/artists/The-weeknd'
+		scraped_artist_id = genius.scrapeArtistData(artist_url)[0]
+		print(f'Scraped artist id: {scraped_artist_id}')
 
 if __name__ == '__main__': 
 	main()
